@@ -1,0 +1,29 @@
+name: Scheduled Query
+
+on:
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  run_query:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.x
+
+    - name: Install dependencies
+      run: pip install -r requirements.txt
+
+    - name: Run SQL query and update Spreadsheet
+      env:
+        HASURA_ENDPOINT: ${{ secrets.HASURA_ENDPOINT }}
+        HASURA_ADMIN_SECRET: ${{ secrets.HASURA_ADMIN_SECRET }}
+        GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
+        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+      run: python main.py
