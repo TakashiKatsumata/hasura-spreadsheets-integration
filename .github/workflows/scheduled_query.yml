@@ -20,14 +20,16 @@ jobs:
       matrix:
         node-version: [16.x]
     steps:
-      - uses: actions/checkout@v2
+        - uses: actions/checkout@v2  # 旧バージョンの場合
++ uses: actions/checkout@v2.4.3  # 新しいバージョンにアップデート
 ...
   append_to_spreadsheet:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout the repository
         uses: actions/checkout@v2
-
+ - uses: actions/checkout@v2  # 旧バージョンの場合
++ uses: actions/checkout@v2.4.3  # 新しいバージョンにアップデート
       - name: Use the Google Sheets API to append data
         uses: google-github-actions/sheets-append-row@v1
         with:
