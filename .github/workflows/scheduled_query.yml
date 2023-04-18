@@ -1,29 +1,36 @@
-name: Scheduled Query
+name: Query and Append to Spreadsheet
 
 on:
   schedule:
-    - cron: '0 0 * * *'
+    # Runs every day at 8:00 JST (23:00 UTC)
+    - cron: '0 23 * * *'
+
+env:
+  SPREADSHEET_ID: 1QFGyqjOCgWKsRrW22IF9XHtGoCs_L70OmkfeqmnYqIA
+  TAB_NAME: 物件取り込み数
 
 jobs:
-  run_query:
+  append_to_spreadsheet:
     runs-on: ubuntu-latest
-
     steps:
-    - name: Check out repository
-      uses: actions/checkout@v2
+      - name: Checkout the repository
+        uses: actions/checkout@v2
 
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: 3.x
+      - name: Use the Google Sheets API to append data
+        uses: google-github-actions/sheets-append-row@v1
+        with:
+          auth_token: ${{ secrets.GOOGLE_AUTH_TOKEN }}
+          spreadsheet_id: ${{ env.SPREADSHEET_ID }}
+          sheet_name: ${{ env.TAB_NAME }}
+          data: ${{ steps.get_data.outputs.row }}
 
-    - name: Install dependencies
-      run: pip install -r requirements.txt
+      - name: Get data
+        id: get_data
+        run: |
+          today=$(date '+%Y/%m/%d')
+          pro_sql1=$(curl -X POST -H "Content-Type: application/json" -H "x-hasura-admin-secret: ${{ secrets.PRO_HASURA_SECRET }}" -d '{"query":"SELECT COUNT(*) FROM properties WHERE to_char(created_at, '\''yyyy/mm/dd'\'') = to_char(CURRENT_DATE - 1, '\''yyyy/mm/dd'\'')"}' ${{ secrets.PRO_HASURA_GRAPHQL_ENDPOINT }} | jq -r '.data | .["count"]')
+          pro_sql2=$(curl -X POST -H "Content-Type: application/json" -H "x-hasura-admin-secret: ${{ secrets.PRO_HASURA_SECRET }}" -d '{"query":"select count(*) from properties p join property_companies pc on p.property_company_id = pc.id where p.is_open and not p.is_ignore and (p.is_acceptable_foreign_nationals or pc.acceptable_foreign_nationals_status = '\''ok'\'')"}' ${{ secrets.PRO_HASURA_GRAPHQL_ENDPOINT }} | jq -r '.data | .["count"]')
+          st_sql1=$(curl -X POST -H "Content-Type: application/json" -H "x-hasura-admin-secret: ${{ secrets.ST_HASURA_SECRET }}" -d '{"query":"SELECT COUNT(*) FROM properties WHERE to_char(created_at, '\''yyyy/mm/dd'\'') = to_char(CURRENT_DATE - 1, '\''yyyy/mm/dd'\'')"}' ${{ secrets.ST_HASURA_GRAPHQL_ENDPOINT }} | jq -r '.data | .["count"]')
+          st_sql2=$(curl -X POST -H "Content-Type: application/json" -H "x-hasura-admin-secret: ${{ secrets.ST_HASURA_SECRET }}" -d '{"query":"select count(*) from properties p join property_companies pc on p.property_company_id = pc.id where p.is_open and not p.is_ignore and (p.is_acceptable_foreign_nationals or pc.acceptable_foreign_nationals_status = '\''ok'\'')"}' ${{ secrets.ST_HASURA_GRAPHQL_ENDPOINT }} | jq -r '.data | .["count"]')
 
-    - name: Run SQL query and update Spreadsheet
-      env:
-        HASURA_ENDPOINT: ${{ secrets.HASURA_ENDPOINT }}
-        HASURA_ADMIN_SECRET: ${{ secrets.HASURA_ADMIN_SECRET }}
-        GOOGLE_SERVICE_ACCOUNT: ${{ secrets.GOOGLE_SERVICE_ACCOUNT }}
-        SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
-      run: python main.py
+          echo "::set-output name=row::${today},${pro_sql1},${pro_sql2},${st_sql1},${st_sql2}"
