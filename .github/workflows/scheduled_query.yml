@@ -10,6 +10,18 @@ env:
   TAB_NAME: 物件取り込み数
 
 jobs:
+    my_job:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+        working-directory: ./my-app
+    strategy:
+      matrix:
+        node-version: [16.x]
+    steps:
+      - uses: actions/checkout@v2
+...
   append_to_spreadsheet:
     runs-on: ubuntu-latest
     steps:
