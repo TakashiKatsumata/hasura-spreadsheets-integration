@@ -1,4 +1,4 @@
-name: Query and Append to Spreadsheet
+name: Schedule Query
 
 on:
   schedule:
@@ -6,45 +6,55 @@ on:
     - cron: '0 23 * * *'
 
 env:
-  SPREADSHEET_ID: 1QFGyqjOCgWKsRrW22IF9XHtGoCs_L70OmkfeqmnYqIA
-  TAB_NAME: 物件取り込み数
+  SPREADSHEET_ID: ${{ secrets.SPREADSHEET_ID }}
+  SERVICE_ACCOUNT_EMAIL: ${{ secrets.SERVICE_ACCOUNT_EMAIL }}
+  SERVICE_ACCOUNT_PRIVATE_KEY: ${{ secrets.SERVICE_ACCOUNT_PRIVATE_KEY }}
+  PRO_HASURA_GRAPHQL_ENDPOINT: https://graphql.home.athearth.com/v1/graphql
+  ST_HASURA_GRAPHQL_ENDPOINT: https://graphql.staging.home.athearth.com/v1/graphql
+  PRO_HASURA_ADMIN_SECRET: ${{ secrets.PRO_HASURA_ADMIN_SECRET }}
+  ST_HASURA_ADMIN_SECRET: ${{ secrets.ST_HASURA_ADMIN_SECRET }}
 
 jobs:
-    my_job:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        shell: bash
-        working-directory: ./my-app
-    strategy:
-      matrix:
-        node-version: [16.x]
-    steps:
-        - uses: actions/checkout@v2  # 旧バージョンの場合
-+ uses: actions/checkout@v2.4.3  # 新しいバージョンにアップデート
-...
-  append_to_spreadsheet:
+  run_query:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout the repository
+      - name: Checkout repository
         uses: actions/checkout@v2
- - uses: actions/checkout@v2  # 旧バージョンの場合
-+ uses: actions/checkout@v2.4.3  # 新しいバージョンにアップデート
-      - name: Use the Google Sheets API to append data
-        uses: google-github-actions/sheets-append-row@v1
+
+      - name: Setup Node.js 16.x
+        uses: actions/setup-node@v2.4.4
         with:
-          auth_token: ${{ secrets.GOOGLE_AUTH_TOKEN }}
-          spreadsheet_id: ${{ env.SPREADSHEET_ID }}
-          sheet_name: ${{ env.TAB_NAME }}
-          data: ${{ steps.get_data.outputs.row }}
+          node-version: '16.x'
 
-      - name: Get data
-        id: get_data
+      - name: Authenticate using service account private key
+        uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        with:
+          version: '341.0.0'
+          project_id: ${{ secrets.PROJECT_ID }}
+          service_account_email: ${{ secrets.SERVICE_ACCOUNT_EMAIL }}
+          service_account_key: ${{ secrets.SERVICE_ACCOUNT_PRIVATE_KEY }}
+        id: auth
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Run scheduled query
         run: |
-          today=$(date '+%Y/%m/%d')
-          pro_sql1=$(curl -X POST -H "Content-Type: application/json" -H "x-hasura-admin-secret: ${{ secrets.PRO_HASURA_SECRET }}" -d '{"query":"SELECT COUNT(*) FROM properties WHERE to_char(created_at, '\''yyyy/mm/dd'\'') = to_char(CURRENT_DATE - 1, '\''yyyy/mm/dd'\'')"}' ${{ secrets.PRO_HASURA_GRAPHQL_ENDPOINT }} | jq -r '.data | .["count"]')
-          pro_sql2=$(curl -X POST -H "Content-Type: application/json" -H "x-hasura-admin-secret: ${{ secrets.PRO_HASURA_SECRET }}" -d '{"query":"select count(*) from properties p join property_companies pc on p.property_company_id = pc.id where p.is_open and not p.is_ignore and (p.is_acceptable_foreign_nationals or pc.acceptable_foreign_nationals_status = '\''ok'\'')"}' ${{ secrets.PRO_HASURA_GRAPHQL_ENDPOINT }} | jq -r '.data | .["count"]')
-          st_sql1=$(curl -X POST -H "Content-Type: application/json" -H "x-hasura-admin-secret: ${{ secrets.ST_HASURA_SECRET }}" -d '{"query":"SELECT COUNT(*) FROM properties WHERE to_char(created_at, '\''yyyy/mm/dd'\'') = to_char(CURRENT_DATE - 1, '\''yyyy/mm/dd'\'')"}' ${{ secrets.ST_HASURA_GRAPHQL_ENDPOINT }} | jq -r '.data | .["count"]')
-          st_sql2=$(curl -X POST -H "Content-Type: application/json" -H "x-hasura-admin-secret: ${{ secrets.ST_HASURA_SECRET }}" -d '{"query":"select count(*) from properties p join property_companies pc on p.property_company_id = pc.id where p.is_open and not p.is_ignore and (p.is_acceptable_foreign_nationals or pc.acceptable_foreign_nationals_status = '\''ok'\'')"}' ${{ secrets.ST_HASURA_GRAPHQL_ENDPOINT }} | jq -r '.data | .["count"]')
+          npm run query
+          npm run append
 
-          echo "::set-output name=row::${today},${pro_sql1},${pro_sql2},${st_sql1},${st_sql2}"
+      - name: Update spreadsheet with query result
+        uses: gavingmiller/sheets-update-cell@v1.1.1
+        with:
+          token: ${{ secrets.GOOGLE_TOKEN }}
+          spreadsheet_id: ${{ env.SPREADSHEET_ID }}
+          sheet_name: '物件取り込み数'
+          cell: A${{ steps.today.outputs.date }}
+          data: ${{ steps.counts.outputs.query-result }}
+          data_type: 'NUMBER'
+
+      - name: Notify if query failed
+        if: failure()
+        run: |
+          echo "Scheduled query failed. Check the logs for details."
+          curl -X POST -H "Content-type: application/json" -d '{"text":"Scheduled query failed. Check the logs for details."}' ${{ secrets.SLACK_WEBHOOK }}
