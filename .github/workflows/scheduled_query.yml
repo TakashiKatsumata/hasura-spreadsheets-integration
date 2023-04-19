@@ -2,10 +2,10 @@ name: Schedule Query
 
 on:
   workflow_dispatch:
-    inputs:
-      test:
-        description: 'Run test manually'
-        required: false
+  inputs:
+    test:
+      description: 'Run test manually'
+      required: false
   schedule:
     # Runs every day at 8:00 JST (23:00 UTC)
     - cron: '0 23 * * *'
@@ -49,7 +49,7 @@ jobs:
           npm run append
 
       - name: Update spreadsheet with query result
-        uses: nathanchapman/sheets-update-cell@v1.1.1
+        uses: gavingmiller/sheets-update-cell@v1.1.1
         with:
           token: ${{ secrets.GOOGLE_TOKEN }}
           spreadsheet_id: ${{ env.SPREADSHEET_ID }}
