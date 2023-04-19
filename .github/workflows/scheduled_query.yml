@@ -2,10 +2,6 @@ name: Schedule Query
 
 on:
   workflow_dispatch:
-  inputs:
-    test:
-      description: 'Run test manually'
-      required: false
   schedule:
     # Runs every day at 8:00 JST (23:00 UTC)
     - cron: '0 23 * * *'
