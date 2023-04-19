@@ -23,12 +23,12 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Setup Node.js 16.x
-        uses: actions/setup-node@v2.4.4
+        uses: actions/setup-node@v2.x
         with:
           node-version: '16.x'
 
       - name: Authenticate using service account private key
-        uses: GoogleCloudPlatform/github-actions/setup-gcloud@master
+        uses: GoogleCloudPlatform/github-actions/setup-gcloud@v1
         with:
           version: '341.0.0'
           project_id: ${{ secrets.PROJECT_ID }}
@@ -45,7 +45,7 @@ jobs:
           npm run append
 
       - name: Update spreadsheet with query result
-        uses: gavingmiller/sheets-update-cell@v1.1.1
+        uses: actions/sheets-update-cell@v1.1.1
         with:
           token: ${{ secrets.GOOGLE_TOKEN }}
           spreadsheet_id: ${{ env.SPREADSHEET_ID }}
