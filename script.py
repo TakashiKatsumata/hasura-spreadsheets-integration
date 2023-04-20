@@ -4,19 +4,11 @@ import datetime
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
 from google.oauth2 import service_account
-from google.auth.credentials import Credentials
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
-from google.oauth2 import service_account
-creds = service_account.Credentials.from_service_account_info(creds_json)
-
-from google.oauth2.service_account import Credentials
-creds = Credentials.from_service_account_info(creds_json)
-
 
 creds_json = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_KEY"])
-scopes = ["https://www.googleapis.com/auth/spreadsheets"]
-creds = Credentials.from_service_account_info(creds_json, scopes)
+creds = service_account.Credentials.from_service_account_info(creds_json)
 
 # Hasuraエンドポイントとシークレットキーの設定
 pro_hasura_url = "https://graphql.home.athearth.com/v1/graphql"
@@ -52,9 +44,7 @@ query1 = gql("""
     }
 """)
 
-creds_json = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_KEY"])
-creds = Credentials.from_service_account_info(creds_json, scopes)
-
+scopes = ["https://www.googleapis.com/auth/spreadsheets"]
 service = build("sheets", "v4", credentials=creds)
 
 spreadsheet_id = "1QFGyqjOCgWKsRrW22IF9XHtGoCs_L70OmkfeqmnYqIA"
@@ -64,10 +54,6 @@ today = datetime.datetime.now().strftime("%Y/%m/%d")
 
 pro_result1 = pro_hasura_client.execute(query1)["properties_aggregate"]["aggregate"]["count"]
 st_result1 = st_hasura_client.execute(query1)["properties_aggregate"]["aggregate"]["count"]
-
-# 以下は変更がないため、既存のコードをそのまま使用してください。
-
-
 # Hasura クライアントの作成
 def create_hasura_client(endpoint, secret):
     transport = RequestsHTTPTransport(
@@ -83,8 +69,6 @@ yesterday = today - datetime.timedelta(days=1)
 
 date_start = yesterday.strftime("%Y-%m-%d")
 date_end = today.strftime("%Y-%m-%d")
-
-
 
 # SQL2 クエリ
 query2 = gql("""
@@ -122,8 +106,8 @@ data = [
 ]
 
 append_request = sheet.values().append(
-    spreadsheetId=SPREADSHEET_ID,
-    range=SHEET_NAME,
+    spreadsheetId=spreadsheet_id,
+    range=sheet_name,
     valueInputOption="USER_ENTERED",
     insertDataOption="INSERT_ROWS",
     body={
