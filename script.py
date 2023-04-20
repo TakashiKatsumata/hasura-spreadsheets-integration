@@ -27,7 +27,6 @@ st_hasura_transport = RequestsHTTPTransport(url=st_hasura_url, headers=st_hasura
 pro_hasura_client = Client(transport=pro_hasura_transport, fetch_schema_from_transport=False)
 st_hasura_client = Client(transport=st_hasura_transport, fetch_schema_from_transport=False)
 
-# 既存のコードはここから続きます
 query1 = gql("""
     query {
         properties_aggregate(where: {
@@ -41,6 +40,22 @@ query1 = gql("""
         }
     }
 """)
+
+creds_json = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_KEY"])
+creds = Credentials.from_service_account_info(creds_json, scopes)
+
+service = build("sheets", "v4", credentials=creds)
+
+spreadsheet_id = "1QFGyqjOCgWKsRrW22IF9XHtGoCs_L70OmkfeqmnYqIA"
+sheet_name = "物件取り込み数"
+
+today = datetime.datetime.now().strftime("%Y/%m/%d")
+
+pro_result1 = pro_hasura_client.execute(query1)["properties_aggregate"]["aggregate"]["count"]
+st_result1 = st_hasura_client.execute(query1)["properties_aggregate"]["aggregate"]["count"]
+
+# 以下は変更がないため、既存のコードをそのまま使用してください。
+
 
 # Hasura クライアントの作成
 def create_hasura_client(endpoint, secret):
@@ -58,13 +73,7 @@ yesterday = today - datetime.timedelta(days=1)
 date_start = yesterday.strftime("%Y-%m-%d")
 date_end = today.strftime("%Y-%m-%d")
 
-# SQL クエリを実行
-pro_hasura_client = create_hasura_client("https://graphql.home.athearth.com/v1/graphql", os.environ["PRO_HASURA_SECRET"])
-st_hasura_client = create_hasura_client("https://graphql.staging.home.athearth.com/v1/graphql", os.environ["ST_HASURA_SECRET"])
 
-query1 = gql(QUERY_TEMPLATE.format(date_start=date_start, date_end=date_end))
-pro_result1 = pro_hasura_client.execute(query1)["properties_aggregate"]["aggregate"]["count"]
-st_result1 = st_hasura_client.execute(query1)["properties_aggregate"]["aggregate"]["count"]
 
 # SQL2 クエリ
 query2 = gql("""
