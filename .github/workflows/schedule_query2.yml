@@ -1,0 +1,31 @@
+name: Schedule Query2
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 23 * * *'
+
+jobs:
+  run_queries_and_update_spreadsheet:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    - name: Set up Python
+      uses: actions/setup-python@v2
+      with:
+        python-version: 3.9
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client gql[all]
+
+    - name: Run script
+      env:
+        GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        PRO_HASURA_SECRET: ${{ secrets.PRO_HASURA_SECRET }}
+        ST_HASURA_SECRET: ${{ secrets.ST_HASURA_SECRET }}
+      run: python script.py
