@@ -1,72 +1,105 @@
 import os
 import json
 import datetime
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
 from gql import gql, Client
 from gql.transport.requests import RequestsHTTPTransport
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
 
-# Googleスプレッドシートへの認証
-credentials_json = json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_KEY'])
-credentials = service_account.Credentials.from_service_account_info(credentials_json)
-sheets_api = build('sheets', 'v4', credentials=credentials)
+# Google API クレデンシャルの設定
+scopes = ['https://www.googleapis.com/auth/spreadsheets']
+creds_json = json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_KEY'])
+creds = Credentials.from_service_account_info(creds_json, scopes)
 
-# スプレッドシートIDとシート名
-spreadsheet_id = '1QFGyqjOCgWKsRrW22IF9XHtGoCs_L70OmkfeqmnYqIA'
-sheet_name = 'Sheet1'
+# スプレッドシート情報
+SPREADSHEET_ID = "1QFGyqjOCgWKsRrW22IF9XHtGoCs_L70OmkfeqmnYqIA"
+SHEET_NAME = "シート1"
 
-# Hasura GraphQLエンドポイントとヘッダー
-pro_hasura_url = 'https://graphql.home.athearth.com/v1/graphql'
-st_hasura_url = 'https://graphql.staging.home.athearth.com/v1/graphql'
-headers = {
-    'Content-Type': 'application/json',
-    'x-hasura-admin-secret': os.environ['PRO_HASURA_SECRET']
-}
+# Hasura クエリ
+QUERY_TEMPLATE = """
+query
+{{
+  properties_aggregate(
+    where: {{
+      _and: [
+        {{ created_at: {{ _gte: "{date_start}" }} }},
+        {{ created_at: {{ _lt: "{date_end}" }} }}
+      ]
+    }}
+  ) {{
+    aggregate {{
+      count
+    }}
+  }}
+}}
+"""
 
-# SQLクエリ
-sql1 = "SELECT COUNT(*) FROM properties WHERE to_char(created_at, 'yyyy/mm/dd') = to_char(CURRENT_DATE - 1, 'yyyy/mm/dd')"
-sql2 = "SELECT COUNT(*) FROM properties p JOIN property_companies pc ON p.property_company_id = pc.id WHERE p.is_open AND NOT p.is_ignore AND (p.is_acceptable_foreign_nationals OR pc.acceptable_foreign_nationals_status = 'ok')"
+# Hasura クライアントの作成
+def create_hasura_client(endpoint, secret):
+    transport = RequestsHTTPTransport(
+        url=endpoint,
+        headers={"x-hasura-admin-secret": secret},
+        use_json=True
+    )
+    return Client(transport=transport, fetch_schema_from_transport=True)
 
-# GraphQLクエリテンプレート
-graphql_query_template = '''
-query($sql: String!) {
-  result: __run_sql(sql: $sql) {
-    rows
+# 日付範囲を取得
+today = datetime.date.today()
+yesterday = today - datetime.timedelta(days=1)
+
+date_start = yesterday.strftime("%Y-%m-%d")
+date_end = today.strftime("%Y-%m-%d")
+
+# SQL クエリを実行
+pro_hasura_client = create_hasura_client("https://graphql.home.athearth.com/v1/graphql", os.environ["PRO_HASURA_SECRET"])
+st_hasura_client = create_hasura_client("https://graphql.staging.home.athearth.com/v1/graphql", os.environ["ST_HASURA_SECRET"])
+
+query1 = gql(QUERY_TEMPLATE.format(date_start=date_start, date_end=date_end))
+pro_result1 = pro_hasura_client.execute(query1)["properties_aggregate"]["aggregate"]["count"]
+st_result1 = st_hasura_client.execute(query1)["properties_aggregate"]["aggregate"]["count"]
+
+# SQL2 クエリ
+query2 = gql("""
+{
+  properties_aggregate(
+    where: {
+      is_open: { _eq: true },
+      is_ignore: { _eq: false },
+      _or: [
+        { is_acceptable_foreign_nationals: { _eq: true } },
+        { property_company: { acceptable_foreign_nationals_status: { _eq: "ok" } } }
+      ]
+    }
+  ) {
+    aggregate {
+      count
+    }
   }
 }
-'''
+""")
 
-def run_sql_query(hasura_url, sql):
-    transport = RequestsHTTPTransport(url=hasura_url, headers=headers, use_json=True)
-    client = Client(transport=transport, fetch_schema_from_transport=True)
-    query = gql(graphql_query_template)
-    result = client.execute(query, variable_values={'sql': sql})
-    return result['result']['rows'][0]['count']
+pro_result2 = pro_hasura_client.execute(query2)["properties_aggregate"]["aggregate"]["count"]
+st_result2 = st_hasura_client.execute(query2)["properties_aggregate"]["aggregate"]["count"]
 
-# 各エンドポイントでSQLクエリを実行
-pro_sql1_result = run_sql_query(pro_hasura_url, sql1)
-pro_sql2_result = run_sql_query(pro_hasura_url, sql2)
-st_sql1_result = run_sql_query(st_hasura_url, sql1)
-st_sql2_result = run_sql_query(st_hasura_url, sql2)
+# スプレッドシートにデータを追加
+service = build("sheets", "v4", credentials=creds)
+sheet = service.spreadsheets()
 
-# 現在の日付を取得
-today = datetime.datetime.now().strftime('%Y/%m/%d')
-
-# スプレッドシートに書き込むデータ
 data = [
-    [today, pro_sql1_result, pro_sql2_result, st_sql1_result, st_sql2_result]
+    yesterday.strftime("%Y/%m/%d"),
+    pro_result1,
+    pro_result2,
+    st_result1,
+    st_result2
 ]
 
-# スプレッドシートへの書き込み
-range_name = f'{sheet_name}!A:A'
-result = sheets_api.spreadsheets().values().get(spreadsheetId=spreadsheet_id, range=range_name).execute()
-rows = result.get('values', [])
-row_number = len(rows) + 1
-
-range_name = f'{sheet_name}!A{row_number}:E{row_number}'
-body = {
-    'range': range_name,
-    'values': data
-}
-sheets_api.spreadsheets().values().update(spreadsheetId=spreadsheet_id, range=range_name, valueInputOption='RAW', body=body).execute()
-
+append_request = sheet.values().append(
+    spreadsheetId=SPREADSHEET_ID,
+    range=SHEET_NAME,
+    valueInputOption="USER_ENTERED",
+    insertDataOption="INSERT_ROWS",
+    body={
+        "values": [data]
+    }
+)
+append_request.execute()
