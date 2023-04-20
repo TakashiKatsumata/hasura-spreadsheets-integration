@@ -7,6 +7,12 @@ from google.oauth2 import service_account
 from google.auth.credentials import Credentials
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
+from google.oauth2 import service_account
+creds = service_account.Credentials.from_service_account_info(creds_json)
+
+from google.oauth2.service_account import Credentials
+creds = Credentials.from_service_account_info(creds_json)
+
 
 creds_json = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_KEY"])
 scopes = ["https://www.googleapis.com/auth/spreadsheets"]
