@@ -1,38 +1,46 @@
 import os
 import json
 import datetime
-from gql import gql, Client
+from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
-from google.oauth2.service_account import Credentials
+from google.oauth2.credentials import Credentials
+from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
 
-# Google API クレデンシャルの設定
-scopes = ['https://www.googleapis.com/auth/spreadsheets']
-creds_json = json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_KEY'])
-creds = Credentials.from_service_account_info(creds_json)
+# Hasuraエンドポイントとシークレットキーの設定
+pro_hasura_url = "https://graphql.home.athearth.com/v1/graphql"
+st_hasura_url = "https://graphql.staging.home.athearth.com/v1/graphql"
 
-# スプレッドシート情報
-SPREADSHEET_ID = "1QFGyqjOCgWKsRrW22IF9XHtGoCs_L70OmkfeqmnYqIA"
-SHEET_NAME = "物件取り込み数"
+pro_hasura_headers = {
+    "Content-Type": "application/json",
+    "x-hasura-admin-secret": os.environ["PRO_HASURA_SECRET"]
+}
 
-# Hasura クエリ
-QUERY_TEMPLATE = """
-query
-{{
-  properties_aggregate(
-    where: {{
-      _and: [
-        {{ created_at: {{ _gte: "{date_start}" }} }},
-        {{ created_at: {{ _lt: "{date_end}" }} }}
-      ]
-    }}
-  ) {{
-    aggregate {{
-      count
-    }}
-  }}
-}}
-"""
+st_hasura_headers = {
+    "Content-Type": "application/json",
+    "x-hasura-admin-secret": os.environ["ST_HASURA_SECRET"]
+}
+
+pro_hasura_transport = RequestsHTTPTransport(url=pro_hasura_url, headers=pro_hasura_headers)
+st_hasura_transport = RequestsHTTPTransport(url=st_hasura_url, headers=st_hasura_headers)
+
+pro_hasura_client = Client(transport=pro_hasura_transport, fetch_schema_from_transport=False)
+st_hasura_client = Client(transport=st_hasura_transport, fetch_schema_from_transport=False)
+
+# 既存のコードはここから続きます
+query1 = gql("""
+    query {
+        properties_aggregate(where: {
+            created_at: {
+                _eq: "yesterday"
+            }
+        }) {
+            aggregate {
+                count
+            }
+        }
+    }
+""")
 
 # Hasura クライアントの作成
 def create_hasura_client(endpoint, secret):
