@@ -3,7 +3,10 @@ import json
 import datetime
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
-from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
+
+creds = service_account.Credentials.from_service_account_info(creds_json, scopes)
+
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
 
