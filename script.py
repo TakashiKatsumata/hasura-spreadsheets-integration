@@ -9,11 +9,11 @@ from googleapiclient.discovery import build
 # Google API クレデンシャルの設定
 scopes = ['https://www.googleapis.com/auth/spreadsheets']
 creds_json = json.loads(os.environ['GOOGLE_SERVICE_ACCOUNT_KEY'])
-creds = Credentials.from_service_account_info(creds_json, scopes)
+creds = Credentials.from_service_account_info(creds_json)
 
 # スプレッドシート情報
 SPREADSHEET_ID = "1QFGyqjOCgWKsRrW22IF9XHtGoCs_L70OmkfeqmnYqIA"
-SHEET_NAME = "シート1"
+SHEET_NAME = "物件取り込み数"
 
 # Hasura クエリ
 QUERY_TEMPLATE = """
