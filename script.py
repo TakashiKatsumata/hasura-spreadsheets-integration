@@ -4,16 +4,13 @@ import datetime
 from gql import Client, gql
 from gql.transport.requests import RequestsHTTPTransport
 from google.oauth2 import service_account
+from google.auth.credentials import Credentials
 from googleapiclient.errors import HttpError
 from googleapiclient.discovery import build
-scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+
 creds_json = json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_KEY"])
-creds = service_account.Credentials.from_service_account_info(
-    json.loads(os.environ["GOOGLE_SERVICE_ACCOUNT_KEY"]), 
-    scopes=["https://www.googleapis.com/auth/spreadsheets"]
-)
-
-
+scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+creds = Credentials.from_service_account_info(creds_json, scopes)
 
 # Hasuraエンドポイントとシークレットキーの設定
 pro_hasura_url = "https://graphql.home.athearth.com/v1/graphql"
